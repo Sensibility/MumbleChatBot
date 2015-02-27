@@ -14,7 +14,7 @@ USERNAME = "MasterBot"  # Bot's name
 PASSWORD = "not124"  # Optional password
 CERTIFICATE = ""  # Optional certificate
 
-USERFILE = "user.log" #Where chat is stored
+USERFILE = "user.log" #Where user log is stored
 
 
 class PeeBotClient(mp.MumbleClient):
@@ -54,7 +54,9 @@ class PeeBotClient(mp.MumbleClient):
 
     def handle_userstate(self, p):
         # Add user id to the userlist
+        update = None
         if p.name:
+            update = True
             self.users[p.session] = p.name
 
         # Stores own session id
@@ -72,13 +74,16 @@ class PeeBotClient(mp.MumbleClient):
                 self.mute_or_deaf(self.session, True, True)
             else:
                 self.mute_or_deaf(self.session, False, False)
-        
+        self.userUpdate(p, update)
 
-        self.userUpdate(p)
-
-    def userUpdate(self, p):
-        if p.name == USERNAME or not p.session in self.users:
+    def userUpdate(self, p, new):
+        if p.actor == 0:
+            p.actor = p.session
+        if not p.actor in self.users:
             return
+        else:
+            if self.users[p.actor] == USERNAME:
+                return
         found = None
         cont = ""
         myFile = open(USERFILE, "r")
@@ -86,13 +91,22 @@ class PeeBotClient(mp.MumbleClient):
             if line == "\n" or line == "\n\r" or line == "\r": 
                 continue
             lines = line.split("||")
-            if self.users[p.session] == lines[0]:
+            #returning user/updating status
+            if self.users[p.actor] == lines[0]:
                 found = True
                 cont+= lines[0]
                 cont+= "||"
-                cont+= self.channels[p.channel_id]
+                #messages have channel_id as an array, states have them as an int
+                if isinstance(p.channel_id, int):
+                    cont+= self.channels[p.channel_id]
+                else:
+                    cont+= self.channels[p.channel_id[0]]
                 cont+= "||"
-                cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                #If they just logged in
+                if new:
+                    cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                else:
+                    cont+= lines[2]
                 cont+= "||"
                 cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
                 cont+= "\n"
@@ -100,10 +114,14 @@ class PeeBotClient(mp.MumbleClient):
                 cont+= line
         myFile.close()
         myFile = open(USERFILE, "w")
+        #New User
         if(found == None):
-            cont+= self.users[p.session]
+            cont+= self.users[p.actor]
             cont+= "||"
-            cont+= self.channels[p.channel_id]
+            if isinstance(p.channel_id, int):
+                cont+= self.channels[p.channel_id]
+            else:
+                cont+= self.channels[p.channel_id[0]]
             cont+= "||"
             cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
             cont+= "||"
@@ -113,6 +131,8 @@ class PeeBotClient(mp.MumbleClient):
         myFile.close()
 
     def handle_textmessage(self, p):
+        self.userUpdate(p, None)
+
         if self.loggingOn:
             p.message = p.message.replace("!||!", "!|!")
             print self.channels[p.channel_id[0]] + "!||!" + self.users[p.actor] + "!||!" + str(datetime.datetime.now().date()) + "!||!" + str(datetime.datetime.now().time()) + "!||!" + p.message
@@ -126,7 +146,6 @@ class PeeBotClient(mp.MumbleClient):
         if p.message == "/reload":
             self.reload()
             self.send_textmessage("Reloaded!", p.channel_id)
-            print "Reloaded!"
 
         # Turnning on/off chat logging
         elif p.message == "/log":
