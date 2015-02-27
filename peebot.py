@@ -2,16 +2,19 @@ from twisted.python.rebuild import rebuild
 import mumble_client as mc
 import mumble_protocol as mp
 import peebot
+import datetime
 
 
-OWNER = "Ph0X"  # Your mumble nickname
-SERVER_IP = "ip.example.com"  # Server IP
-SERVER_PORT = 12345  # Server PORT
-USERNAME = "PeeBot"  # Bot's name
+OWNER = "othercrusherexe"  # Your mumble nickname
+SERVER_IP = "mumble.superphage.us"  # Server IP
+SERVER_PORT = 64738  # Server PORT
+USERNAME = "MasterBot"  # Bot's name
 
 # Use empty string for optional fields to remove
-PASSWORD = "hunter2"  # Optional password
-CERTIFICATE = "somefile.p12"  # Optional certificate
+PASSWORD = "not124"  # Optional password
+CERTIFICATE = ""  # Optional certificate
+
+USERFILE = "user.log" #Where chat is stored
 
 
 class PeeBotClient(mp.MumbleClient):
@@ -21,10 +24,11 @@ class PeeBotClient(mp.MumbleClient):
         self.users = {}
         self.channels = {}
         self.session = 0
-        self.channel = 0
+        self.channel = 3
         self.shutup = []
         self.follow = 0
         self.c_order = []
+        self.loggingOn = True
 
     def reload(self):
         rebuild(mp)
@@ -68,8 +72,52 @@ class PeeBotClient(mp.MumbleClient):
                 self.mute_or_deaf(self.session, True, True)
             else:
                 self.mute_or_deaf(self.session, False, False)
+        
+
+        self.userUpdate(p)
+
+    def userUpdate(self, p):
+        if p.name == USERNAME or not p.session in self.users:
+            return
+        found = None
+        cont = ""
+        myFile = open(USERFILE, "r")
+        for line in myFile:
+            if line == "\n" or line == "\n\r" or line == "\r": 
+                continue
+            lines = line.split("||")
+            if self.users[p.session] == lines[0]:
+                found = True
+                cont+= lines[0]
+                cont+= "||"
+                cont+= self.channels[p.channel_id]
+                cont+= "||"
+                cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                cont+= "||"
+                cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                cont+= "\n"
+            else:
+                cont+= line
+        myFile.close()
+        myFile = open(USERFILE, "w")
+        if(found == None):
+            cont+= self.users[p.session]
+            cont+= "||"
+            cont+= self.channels[p.channel_id]
+            cont+= "||"
+            cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+            cont+= "||"
+            cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+            cont+= "\n"
+        myFile.write(cont)
+        myFile.close()
 
     def handle_textmessage(self, p):
+        if self.loggingOn:
+            p.message = p.message.replace("!||!", "!|!")
+            print self.channels[p.channel_id[0]] + "!||!" + self.users[p.actor] + "!||!" + str(datetime.datetime.now().date()) + "!||!" + str(datetime.datetime.now().time()) + "!||!" + p.message
+
+        #ADMIN COMMANDS
         # Only listen to the owner
         if self.users[p.actor] != OWNER:
             return
@@ -77,7 +125,15 @@ class PeeBotClient(mp.MumbleClient):
         # Reload the script
         if p.message == "/reload":
             self.reload()
+            self.send_textmessage("Reloaded!", p.channel_id)
             print "Reloaded!"
+
+        # Turnning on/off chat logging
+        elif p.message == "/log":
+            if self.loggingOn:
+                self.loggingOn = None
+            else:
+                self.loggingOn = True
 
         # Moves user every time they talk
         elif p.message.startswith("/shutup"):
