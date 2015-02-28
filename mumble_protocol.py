@@ -49,6 +49,8 @@ PACKET_NAMES = {
 class VoicePacket():
     def __init__(self):
         self.session = 0
+        self.actor = 0
+        self.channel_id = -1
         self.type = 0
         self.target = 0
         self.sequence = 0

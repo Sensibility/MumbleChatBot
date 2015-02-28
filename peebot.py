@@ -29,6 +29,7 @@ class PeeBotClient(mp.MumbleClient):
         self.follow = 0
         self.c_order = []
         self.loggingOn = True
+        self.timer = (datetime.datetime.now() + datetime.timedelta(0,2)).time()
 
     def reload(self):
         rebuild(mp)
@@ -43,6 +44,10 @@ class PeeBotClient(mp.MumbleClient):
     def handle_udptunnel(self, p):
         if self.users[p.session] in self.shutup:
             self.move_user(self.shutup_channel, p.session)
+        #Checks every two seconds if a person is talking
+        if (datetime.datetime.now().time() > self.timer):
+            self.userUpdate(p, None)
+            (datetime.datetime.now() + datetime.timedelta(0,2)).time()
 
     def handle_channelstate(self, p):
         if p.name:
@@ -50,6 +55,7 @@ class PeeBotClient(mp.MumbleClient):
 
     def handle_userremove(self, p):
         # Remove user from userlist
+        self.userUpdate(p, True)
         del self.users[p.session]
 
     def handle_userstate(self, p):
@@ -77,8 +83,11 @@ class PeeBotClient(mp.MumbleClient):
         self.userUpdate(p, update)
 
     def userUpdate(self, p, new):
+        #p.actor is 0 if it is a state change, messages don't have a p.session var
         if p.actor == 0:
             p.actor = p.session
+        if p.channel_id == -1:
+            p.channel_id = p.target
         if not p.actor in self.users:
             return
         else:
@@ -102,7 +111,7 @@ class PeeBotClient(mp.MumbleClient):
                 else:
                     cont+= self.channels[p.channel_id[0]]
                 cont+= "||"
-                #If they just logged in
+                #If they just logged in/logged out
                 if new:
                     cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
                 else:
@@ -130,12 +139,69 @@ class PeeBotClient(mp.MumbleClient):
         myFile.write(cont)
         myFile.close()
 
+    #Displays when a user was last active/online
+    def getLast(self, name, type):
+        found = None
+        myFile = open(USERFILE, "r")
+        for line in myFile:
+            if line == "\n" or line == "\n\r" or line == "\r": 
+                continue
+            lines = line.split("||")
+            #returning user/updating status
+            if name == lines[0]:
+                found = True
+                online = None
+                for user in self.users:
+                    if name ==  self.users[user]:
+                        online = True
+                msg = name
+                if(type == "Active"):
+                    if online:
+                        msg+= " was last active at " + lines[3].split("::")[1][:-7]
+                    else:
+                        msg+= " is not online and was last seen in the channel " + lines[1] + " on " + lines[2].replace("::", " at")[:-7]
+                        
+                if(type == "Online"):
+                    if online:
+                        msg+= " is online and was last active at " + lines[3].split("::")[1][:-7]
+                    else:
+                        msg+= " was last seen in the channel " + lines[1] + " on " + lines[2].replace("::", " at ")[:-7]
+                break
+        myFile.close()
+        if not found:
+            return None
+        else:
+            return msg
+
+    def logMsg(self, msg):
+
+
     def handle_textmessage(self, p):
         self.userUpdate(p, None)
 
+        #Displays all available commands
+        if p.message.startswith("/help"):
+            self.reply(p, "<p>/active [username] will display when the user was last active</p><p>/online [username] will display when the user was last online</p>")
+
+        #Displays when user was last active
+        if p.message.startswith("/active"):
+            response = self.getLast(p.message.split(' ')[-1], "Active")
+            if not response:
+                self.reply(p, "Invalid Name")
+            else:
+                self.reply(p, response)
+
+        #Displays when user was last online
+        if p.message.startswith("/online"):
+            response = self.getLast(p.message.split(' ')[-1], "Online")
+            if not response:
+                self.reply(p, "Invalid Name")
+            else:
+                self.reply(p, response)
+
         if self.loggingOn:
             p.message = p.message.replace("!||!", "!|!")
-            print self.channels[p.channel_id[0]] + "!||!" + self.users[p.actor] + "!||!" + str(datetime.datetime.now().date()) + "!||!" + str(datetime.datetime.now().time()) + "!||!" + p.message
+            self.logMsg(self.channels[p.channel_id[0]] + "!||!" + self.users[p.actor] + "!||!" + str(datetime.datetime.now().date()) + "!||!" + str(datetime.datetime.now().time()) + "!||!" + p.message)
 
         #ADMIN COMMANDS
         # Only listen to the owner
@@ -148,7 +214,7 @@ class PeeBotClient(mp.MumbleClient):
             self.send_textmessage("Reloaded!", p.channel_id)
 
         # Turnning on/off chat logging
-        elif p.message == "/log":
+        elif p.message == "/logging":
             if self.loggingOn:
                 self.loggingOn = None
             else:
