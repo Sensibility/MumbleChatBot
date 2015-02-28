@@ -15,6 +15,7 @@ PASSWORD = "not124"  # Optional password
 CERTIFICATE = ""  # Optional certificate
 
 USERFILE = "user.log" #Where user log is stored
+BASELOG = "chat.log" #Where chat log is stored
 
 
 class PeeBotClient(mp.MumbleClient):
@@ -174,7 +175,11 @@ class PeeBotClient(mp.MumbleClient):
             return msg
 
     def logMsg(self, msg):
+        week = self.begWeek()
+        print msg
 
+    def begWeek(self):
+        print datetime.datetime.now().date().isocalendar()[0]
 
     def handle_textmessage(self, p):
         self.userUpdate(p, None)
