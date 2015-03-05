@@ -2,7 +2,7 @@ from twisted.python.rebuild import rebuild
 import mumble_client as mc
 import mumble_protocol as mp
 import peebot
-import datetime
+import datetime, os, time
 
 
 OWNER = "othercrusherexe"  # Your mumble nickname
@@ -56,7 +56,7 @@ class PeeBotClient(mp.MumbleClient):
 
     def handle_userremove(self, p):
         # Remove user from userlist
-        self.userUpdate(p, True)
+        self.userUpdate(p, "delete")
         del self.users[p.session]
 
     def handle_userstate(self, p):
@@ -119,6 +119,12 @@ class PeeBotClient(mp.MumbleClient):
                     cont+= lines[2]
                 cont+= "||"
                 cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                cont+= "||"
+                #if they logged out
+                if new == "delete":
+                    cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                else:
+                    cont+= lines[4].replace("\n", '')
                 cont+= "\n"
             else:
                 cont+= line
@@ -136,6 +142,8 @@ class PeeBotClient(mp.MumbleClient):
             cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
             cont+= "||"
             cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+            cont+= "||"
+            cont+= "0"
             cont+= "\n"
         myFile.write(cont)
         myFile.close()
@@ -175,18 +183,72 @@ class PeeBotClient(mp.MumbleClient):
             return msg
 
     def logMsg(self, msg):
-        week = self.begWeek()
-        print msg
+        week = self.begWeek(datetime.datetime.now().date().isocalendar())
+        if os.path.isfile(week + BASELOG):
+            myFile = open(week + BASELOG, "a")
+        else:
+            myFile = open(week + BASELOG, "w")
+        myFile.write(msg + "\n")
+        myFile.close()
 
-    def begWeek(self):
-        print datetime.datetime.now().date().isocalendar()[0]
+    def begWeek(self, date):
+        curDate = datetime.date(date[0], date[1], date[2])
+        curDate = str(curDate)[:-3] + ":"
+        return curDate
+
+    def getLastOnline(self, p):
+        myFile = open(USERFILE, "r")
+        for line in myFile:
+            if line == "\n" or line == "\n\r" or line == "\r": 
+                continue
+            lines = line.split("||")
+            if lines[0] != self.users[p.actor]:
+                continue
+            else:
+                if lines[4] == "0":
+                    return None
+                else:
+                    return lines[4]
+
+    def getLogMessage(self, oldFile, onlineTime, currentFile, currentTime):
+        oldWeeks = oldFile.split('-')[1].replace(':', '')
+        newWeeks = currentFile.split('-')[1].replace(':', '')
+        response = ""
+        if not (int(oldFile.split('-')[0]) - int(currentFile.split('-')[0])):
+            for x in range((int(oldWeeks) - int(newWeeks)) + 1):
+                currentLog = oldFile.split('-')[0] + "-" + str(int(oldWeeks) + x) + ":"
+                if os.path.isfile(currentLog + BASELOG):
+                    myFile = open(currentLog + BASELOG, "r")
+                    for line in myFile:
+                        if line == "\n" or line == "\n\r" or line == "\r": 
+                            continue
+                        lines = line.split("!||!")
+                        response+= "<p>In " + lines[0] + " on " + lines[2] + " at " + lines[3][:-7] + " " + lines[1] + " said: " + lines[4] + "</p>"
+                else:
+                    print currentLog
+        else:
+            print (int(oldFile.split('-')[0]) - int(currentFile.split('-')[0]))
+        return response
+
 
     def handle_textmessage(self, p):
         self.userUpdate(p, None)
 
         #Displays all available commands
         if p.message.startswith("/help"):
-            self.reply(p, "<p>/active [username] will display when the user was last active</p><p>/online [username] will display when the user was last online</p>")
+            self.reply(p, "<p>/active [username] will display when the user was last active<//p><p>/online [username] will display when the user was last online</p><p>/log online will display all messages since you were last online</p>")
+
+        if p.message.startswith("/log"):
+            msg = p.message.split()
+            if msg[1] == "online":
+                seenDate = self.getLastOnline(p)
+                temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
+                onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
+                onlineTime = seenDate.split("::")[1]
+                currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
+                currentTime = datetime.datetime.now().time()
+                self.reply(p, self.getLogMessage(onlineFile, onlineTime, currentWeek, currentTime))
+
 
         #Displays when user was last active
         if p.message.startswith("/active"):
