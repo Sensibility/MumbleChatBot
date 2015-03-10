@@ -36,7 +36,10 @@ class PeeBotClient(mp.MumbleClient):
         rebuild(mp)
         rebuild(peebot)
 
-    def reply(self, p, msg):
+    def reply(self, p, msg, pm = None):
+        if pm:
+            self.send_textmessage(msg, users=[p.actor])
+            return
         if p.channel_id:
             self.send_textmessage(msg, channels=p.channel_id)
         else:
@@ -245,7 +248,7 @@ class PeeBotClient(mp.MumbleClient):
                                 continue
                         response+= "<p>In " + lines[0] + " on " + lines[2] + " at " + lines[3][:-7] + " " + lines[1] + " said: " + lines[4] + "</p>"
                         if i == 24:
-                            self.reply(p, response)
+                            self.reply(p, response, True)
                             response = ""
                 else:
                     print "Doesn't exist: " + currentLog
@@ -254,7 +257,7 @@ class PeeBotClient(mp.MumbleClient):
         if response == "" and i != 0:
             response = "No unseen messages"
         else:
-            self.reply(p, response)
+            self.reply(p, response, True)
 
 
     def handle_textmessage(self, p):
@@ -262,7 +265,7 @@ class PeeBotClient(mp.MumbleClient):
 
         #Displays all available commands
         if p.message.startswith("/help"):
-            self.reply(p, "<p>/active [username] will display when the user was last active<//p><p>/online [username] will display when the user was last online</p><p>/log online will display all messages since you were last online</p>")
+            self.reply(p, "<p>/active [username] will display when the user was last active</p><p>/online [username] will display when the user was last online</p><p>/log online will display all messages since you were last online</p>", True)
 
         if p.message.startswith("/log"):
             msg = p.message.split()
@@ -275,7 +278,7 @@ class PeeBotClient(mp.MumbleClient):
                     currentTime = datetime.datetime.now().time()
                     self.getLogMessage(p, onlineFile, seenDate, currentWeek, currentTime)
                 else:
-                    self.reply(p, "User has never been seen logging off")
+                    self.reply(p, "User has never been seen logging off", True)
 
 
         #Displays when user was last active
@@ -294,7 +297,7 @@ class PeeBotClient(mp.MumbleClient):
             else:
                 self.reply(p, response)
 
-        if self.loggingOn:
+        if self.loggingOn and not p.message.startswith("/log"):
             p.message = p.message.replace("!||!", "!|!")
             self.logMsg(self.channels[p.channel_id[0]] + "!||!" + self.users[p.actor] + "!||!" + str(datetime.datetime.now().date()) + "!||!" + str(datetime.datetime.now().time()) + "!||!" + p.message)
 
