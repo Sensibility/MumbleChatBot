@@ -205,30 +205,56 @@ class PeeBotClient(mp.MumbleClient):
             if lines[0] != self.users[p.actor]:
                 continue
             else:
-                if lines[4] == "0":
+                if lines[4] == "0\n":
                     return None
                 else:
                     return lines[4]
 
-    def getLogMessage(self, oldFile, onlineTime, currentFile, currentTime):
-        oldWeeks = oldFile.split('-')[1].replace(':', '')
-        newWeeks = currentFile.split('-')[1].replace(':', '')
+    def getLogMessage(self, p, oldFile, seenDate, currentFile, currentTime):
+        oldWeeks = oldFile.replace(':', '').split('-')[1]
+        newWeeks = currentFile.replace(':', '').split('-')[1]
         response = ""
+        #if there is no difference in year
         if not (int(oldFile.split('-')[0]) - int(currentFile.split('-')[0])):
-            for x in range((int(oldWeeks) - int(newWeeks)) + 1):
-                currentLog = oldFile.split('-')[0] + "-" + str(int(oldWeeks) + x) + ":"
+            #iterating over first week to current week
+            for x in range((int(newWeeks) - int(oldWeeks) + 1)):
+                if len(str(int(oldWeeks) + x)) == 1:
+                    week = "0" + str(int(oldWeeks) + x)
+                else:
+                    week = str(int(oldWeeks) + x)
+                currentLog = oldFile.split('-')[0] + "-" + week + ":"
+                i = 0
                 if os.path.isfile(currentLog + BASELOG):
                     myFile = open(currentLog + BASELOG, "r")
-                    for line in myFile:
+                    #If we are in the first file
+                    for i, line in enumerate(myFile):
                         if line == "\n" or line == "\n\r" or line == "\r": 
                             continue
                         lines = line.split("!||!")
+                        #on oldFile file, looking for start output
+                        if not x :
+                            if lines[2] < seenDate.split("::")[0]:
+                                continue
+                            if lines[3] < seenDate.split("::")[1]:
+                                continue
+                        #If we are in the last file
+                        elif int(oldWeeks) + x  == int(newWeeks) + 1:
+                            if lines[2] > str(currentTime).split("::")[0]:
+                                continue
+                            if lines[3] > str(currentTime).split("::")[1]:
+                                continue
                         response+= "<p>In " + lines[0] + " on " + lines[2] + " at " + lines[3][:-7] + " " + lines[1] + " said: " + lines[4] + "</p>"
+                        if i == 24:
+                            self.reply(p, response)
+                            response = ""
                 else:
-                    print currentLog
+                    print "Doesn't exist: " + currentLog
         else:
             print (int(oldFile.split('-')[0]) - int(currentFile.split('-')[0]))
-        return response
+        if response == "" and i != 0:
+            response = "No unseen messages"
+        else:
+            self.reply(p, response)
 
 
     def handle_textmessage(self, p):
@@ -242,12 +268,14 @@ class PeeBotClient(mp.MumbleClient):
             msg = p.message.split()
             if msg[1] == "online":
                 seenDate = self.getLastOnline(p)
-                temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
-                onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
-                onlineTime = seenDate.split("::")[1]
-                currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
-                currentTime = datetime.datetime.now().time()
-                self.reply(p, self.getLogMessage(onlineFile, onlineTime, currentWeek, currentTime))
+                if seenDate:
+                    temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
+                    onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
+                    currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
+                    currentTime = datetime.datetime.now().time()
+                    self.getLogMessage(p, onlineFile, seenDate, currentWeek, currentTime)
+                else:
+                    self.reply(p, "User has never been seen logging off")
 
 
         #Displays when user was last active
