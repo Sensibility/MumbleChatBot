@@ -3,6 +3,7 @@ import mumble_client as mc
 import mumble_protocol as mp
 import peebot
 import datetime, os, time
+from threading import Timer
 
 
 OWNER = "othercrusherexe"  # Your mumble nickname
@@ -12,7 +13,7 @@ USERNAME = "MasterBot"  # Bot's name
 
 # Use empty string for optional fields to remove
 PASSWORD = "not124"  # Optional password
-CERTIFICATE = ""  # Optional certificate
+CERTIFICATE = "/home/crusherexe/master.p12"  # Optional certificate
 
 USERFILE = "user.log" #Where user log is stored
 BASELOG = "chat.log" #Where chat log is stored
@@ -30,11 +31,42 @@ class PeeBotClient(mp.MumbleClient):
         self.follow = 0
         self.c_order = []
         self.loggingOn = True
+        self.move = True
         self.timer = (datetime.datetime.now() + datetime.timedelta(0,2)).time()
+        self.t = Timer(10.0, self.moveToAfk).start()
 
     def reload(self):
         rebuild(mp)
         rebuild(peebot)
+
+    def moveToAfk(self):
+        print "Checking..."
+        people = {}
+        for id in self.users:
+            people[self.users[id]] = id
+        if not self.move:
+            print "Stopping"
+        else:
+            myFile = open(USERFILE, "r")
+            for line in myFile:
+                if line == "\n" or line == "\n\r" or line == "\r": 
+                    continue
+                lines = line.split("||")
+                if lines[0] in self.users.values():
+                    if lines[1] != 'afk':
+                        times = lines[3].split('::')
+                        date = times[0]
+                        curTime = times[1]
+                        date = time.strptime(date, "%Y-%m-%d")
+                        curTime = time.strptime(curTime.split('.')[0], "%H:%M:%S")
+                        curTime = datetime.datetime(date[0], date[1], date[2], curTime[3], curTime[4], curTime[5])
+                        date = datetime.date(date[0], date[1], date[2])
+                        if date == datetime.datetime.now().date():
+                            if curTime + datetime.timedelta(0, 1200) < datetime.datetime.now():
+                                self.move_user(1, people[lines[0]])
+                        elif date < datetime.datetime.now().date():
+                            self.move_user(1, people[lines[0]])
+            self.t = Timer(10.0, self.moveToAfk).start()
 
     def reply(self, p, msg, pm = None):
         if pm:
@@ -128,7 +160,15 @@ class PeeBotClient(mp.MumbleClient):
                     cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
                 else:
                     cont+= lines[4].replace("\n", '')
+                cont+= "||"
+                #channel state is int if moving channels, therefore this checks
+                #if they have just moved to SuperPhage
+                if p.channel_id and p.__class__.__name__ == "UserState":
+                    cont+=  str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                else:
+                    cont+= lines[5].replace("\n", '')
                 cont+= "\n"
+
             else:
                 cont+= line
         myFile.close()
@@ -147,6 +187,9 @@ class PeeBotClient(mp.MumbleClient):
             cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
             cont+= "||"
             cont+= "0"
+            cont+= "||"
+            cont+= "0"
+            cont+= "||"
             cont+= "\n"
         myFile.write(cont)
         myFile.close()
@@ -199,7 +242,7 @@ class PeeBotClient(mp.MumbleClient):
         curDate = str(curDate)[:-3] + ":"
         return curDate
 
-    def getLastOnline(self, p):
+    def getLastStatus(self, p, status):
         myFile = open(USERFILE, "r")
         for line in myFile:
             if line == "\n" or line == "\n\r" or line == "\r": 
@@ -208,12 +251,40 @@ class PeeBotClient(mp.MumbleClient):
             if lines[0] != self.users[p.actor]:
                 continue
             else:
-                if lines[4] == "0\n":
-                    return None
-                else:
-                    return lines[4]
+                if(status == "Online"):
+                    if lines[4] == "0":
+                        return None
+                    else:
+                        return lines[4]
+                elif(status == "Afk"):
+                    if lines[5] == "0\n":
+                        return None
+                    else:
+                        return lines[5]
+        return None
 
-    def getLogMessage(self, p, oldFile, seenDate, currentFile, currentTime):
+    def compareTime(self, time1, time2):
+        if time1.tm_year > time2.tm_year:
+            return True
+        else:
+            if time1.tm_mon > time2.tm_mon:
+                return True
+            else:
+                if time1.tm_mday >time2.tm_mday:
+                    return True
+                else:
+                    if time1.tm_hour > time2.tm_hour:
+                        return True
+                    else:
+                        if time1.tm_min > time2.tm_min:
+                            return True
+                        else:
+                            if time1.tm_sec > time2.tm_sec:
+                                return True
+                            else:
+                                return None
+
+    def getLogMessage(self, p, oldFile, seenDate, currentFile, newTime, newDay):
         oldWeeks = oldFile.replace(':', '').split('-')[1]
         newWeeks = currentFile.replace(':', '').split('-')[1]
         response = ""
@@ -234,20 +305,21 @@ class PeeBotClient(mp.MumbleClient):
                         if line == "\n" or line == "\n\r" or line == "\r": 
                             continue
                         lines = line.split("!||!")
+                        newComp = time.strptime(newDay + "::" + str(newTime).split(".")[0], "%Y-%m-%d::%H:%M:%S")
+                        oldComp = time.strptime(seenDate.split(".")[0], "%Y-%m-%d::%H:%M:%S")
+                        tempTime = time.strptime(lines[2] + "::" + lines[3].split(".")[0], "%Y-%m-%d::%H:%M:%S")
                         #on oldFile file, looking for start output
-                        if not x :
-                            if lines[2] < seenDate.split("::")[0]:
-                                continue
-                            if lines[3] < seenDate.split("::")[1]:
+                        if not x and not (int(newWeeks) - int(oldWeeks)):
+                            if self.compareTime(oldComp, tempTime):
                                 continue
                         #If we are in the last file
-                        elif int(oldWeeks) + x  == int(newWeeks) + 1:
-                            if lines[2] > str(currentTime).split("::")[0]:
+                        if int(oldWeeks) + x == int(newWeeks):
+                            if not self.compareTime(newComp, tempTime):
                                 continue
-                            if lines[3] > str(currentTime).split("::")[1]:
-                                continue
+
                         response+= "<p>In " + lines[0] + " on " + lines[2] + " at " + lines[3][:-7] + " " + lines[1] + " said: " + lines[4] + "</p>"
-                        if i == 24:
+                        #To avoid too large of a string
+                        if i % 20 == 0:
                             self.reply(p, response, True)
                             response = ""
                 else:
@@ -265,37 +337,51 @@ class PeeBotClient(mp.MumbleClient):
 
         #Displays all available commands
         if p.message.startswith("/help"):
-            self.reply(p, "<p>/active [username] will display when the user was last active</p><p>/online [username] will display when the user was last online</p><p>/log online will display all messages since you were last online</p>", True)
+            self.reply(p, "<p>/active [username] will display when the user was last active</p><p>/online [username] will display when the user was last online</p><p>/log online will display all messages since you were last online</p><p>/log channel will display all messages since you left the root channel</p>", True)
 
         if p.message.startswith("/log"):
             msg = p.message.split()
-            if msg[1] == "online":
-                seenDate = self.getLastOnline(p)
-                if seenDate:
-                    temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
-                    onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
-                    currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
-                    currentTime = datetime.datetime.now().time()
-                    self.getLogMessage(p, onlineFile, seenDate, currentWeek, currentTime)
-                else:
-                    self.reply(p, "User has never been seen logging off", True)
+            if len(msg) > 1:
+                if msg[1] == "online":
+                    seenDate = self.getLastStatus(p, "Online")
+                    if seenDate:
+                        print seenDate
+                        temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
+                        onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
+                        currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
+                        currentTime = datetime.datetime.now().time()
+                        self.getLogMessage(p, onlineFile, seenDate, currentWeek, currentTime, seenDate.split("::")[0])
+                    else:
+                        self.reply(p, "You have never been seen logging off", True)
+                elif msg[1] == "channel":
+                    seenDate = self.getLastStatus(p, "Afk")
+                    if seenDate:
+                        temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
+                        onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
+                        currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
+                        currentTime = datetime.datetime.now().time()
+                        self.getLogMessage(p, onlineFile, seenDate, currentWeek, currentTime, seenDate.split("::")[0])
+                    else:
+                        self.reply(p, "You have never been seen in a differnet channel", True)
 
 
         #Displays when user was last active
         if p.message.startswith("/active"):
-            response = self.getLast(p.message.split(' ')[-1], "Active")
-            if not response:
-                self.reply(p, "Invalid Name")
-            else:
-                self.reply(p, response)
+            if len(p.message.split() > 1):
+                response = self.getLast(p.message.split(' ')[-1], "Active")
+                if not response:
+                    self.reply(p, "Invalid Name")
+                else:
+                    self.reply(p, response)
 
         #Displays when user was last online
         if p.message.startswith("/online"):
-            response = self.getLast(p.message.split(' ')[-1], "Online")
-            if not response:
-                self.reply(p, "Invalid Name")
-            else:
-                self.reply(p, response)
+            if len(p.message.split() > 1):
+                response = self.getLast(p.message.split(' ')[-1], "Online")
+                if not response:
+                    self.reply(p, "Invalid Name")
+                else:
+                    self.reply(p, response)
 
         if self.loggingOn and not p.message.startswith("/log"):
             p.message = p.message.replace("!||!", "!|!")
@@ -310,6 +396,13 @@ class PeeBotClient(mp.MumbleClient):
         if p.message == "/reload":
             self.reload()
             self.send_textmessage("Reloaded!", p.channel_id)
+
+        if p.message == "/afk":
+            if self.move:
+                self.move = None
+            else:
+                self.move = True
+                self.t = Timer(10.0, self.moveToAfk).start()
 
         # Turnning on/off chat logging
         elif p.message == "/logging":

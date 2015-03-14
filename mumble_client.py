@@ -20,7 +20,7 @@ class MumbleClientFactory(protocol.ClientFactory):
 
 def load_certificate(cert_file):
     from OpenSSL import crypto, SSL
-    p12 = crypto.load_pkcs12(file(cert_file, 'rb').read())
+    p12 = crypto.load_pkcs12(file(cert_file, 'rb').read(), "")
 
     class CtxFactory(ssl.ClientContextFactory):
         def getContext(self):
