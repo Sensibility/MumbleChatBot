@@ -92,7 +92,10 @@ class PeeBotClient(mp.MumbleClient):
     def handle_userremove(self, p):
         # Remove user from userlist
         self.userUpdate(p, "delete")
-        del self.users[p.session]
+        try:
+            del self.users[p.session]
+        except:
+            print "Couldn't delete users session"
 
     def handle_userstate(self, p):
         # Add user id to the userlist
@@ -333,7 +336,11 @@ class PeeBotClient(mp.MumbleClient):
 
 
     def handle_textmessage(self, p):
-        self.userUpdate(p, None)
+        try:
+            self.userUpdate(p, None)
+        except:
+            print "Could not update user state" 
+
 
         #Displays all available commands
         if p.message.startswith("/help"):
