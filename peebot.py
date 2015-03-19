@@ -13,7 +13,7 @@ USERNAME = "MasterBot"  # Bot's name
 
 # Use empty string for optional fields to remove
 PASSWORD = "not124"  # Optional password
-CERTIFICATE = "/home/crusherexe/master.p12"  # Optional certificate
+CERTIFICATE = "master.p12"  # Optional certificate
 
 USERFILE = "user.log" #Where user log is stored
 BASELOG = "chat.log" #Where chat log is stored
@@ -367,7 +367,7 @@ class PeeBotClient(mp.MumbleClient):
 
         #Displays when user was last active
         if p.message.startswith("/active"):
-            if len(p.message.split() > 1):
+            if len(p.message.split()) > 1:
                 response = self.getLast(p.message.split(' ')[-1], "Active")
                 if not response:
                     self.reply(p, "Invalid Name")
@@ -376,7 +376,7 @@ class PeeBotClient(mp.MumbleClient):
 
         #Displays when user was last online
         if p.message.startswith("/online"):
-            if len(p.message.split() > 1):
+            if len(p.message.split()) > 1:
                 response = self.getLast(p.message.split(' ')[-1], "Online")
                 if not response:
                     self.reply(p, "Invalid Name")
