@@ -17,6 +17,7 @@ CERTIFICATE = "master.p12"  # Optional certificate
 
 USERFILE = "user.log" #Where user log is stored
 BASELOG = "chat.log" #Where chat log is stored
+DEBUGLOG = "debug.log" #Where debug information is stored
 
 
 class PeeBotClient(mp.MumbleClient):
@@ -34,26 +35,36 @@ class PeeBotClient(mp.MumbleClient):
         self.move = True
         self.timer = (datetime.datetime.now() + datetime.timedelta(0,2)).time()
         self.t = Timer(10.0, self.moveToAfk).start()
+        self.debug = True
+        self.debugFile = open(DEBUGLOG, "a")
 
     def reload(self):
         rebuild(mp)
         rebuild(peebot)
 
     def moveToAfk(self):
-        print "Checking..."
         people = {}
         for id in self.users:
             people[self.users[id]] = id
         if not self.move:
-            print "Stopping"
+            if self.debug:
+                self.debugFile.write("Moving is turned off\n")
         else:
             myFile = open(USERFILE, "r")
             for line in myFile:
                 if line == "\n" or line == "\n\r" or line == "\r": 
                     continue
                 lines = line.split("||")
+                if self.debug:
+                    self.debugFile.write("Checking: ")
+                    self.debugFile.write(lines[0])
+                    self.debugFile.write("\n")
                 if lines[0] in self.users.values():
+                    if self.debug:
+                        self.debugFile.write("User is currently logged in\n")
                     if lines[1] != 'afk':
+                        if self.debug:
+                            self.debugFile.write("User is not in afk\n")
                         times = lines[3].split('::')
                         date = times[0]
                         curTime = times[1]
@@ -63,9 +74,21 @@ class PeeBotClient(mp.MumbleClient):
                         date = datetime.date(date[0], date[1], date[2])
                         if date == datetime.datetime.now().date():
                             if curTime + datetime.timedelta(0, 1200) < datetime.datetime.now():
+                                if self.debug:
+                                    self.debugFile.write("User has not been active for 1200 seconds\n")
                                 self.move_user(1, people[lines[0]])
+                            elif self.debug:
+                                self.debugFile.write("Same date, but they have been active in the last 1200 seconds\n")
+                        #If I have 10 people on at 11:59 p.m. and it changes to 12 of the next day
+                        #the bot will? move everybody to afk UNTESTED
                         elif date < datetime.datetime.now().date():
+                            if self.debug:
+                                self.debugFile.write("User has not been active?\n")
                             self.move_user(1, people[lines[0]])
+                        elif self.debug:
+                            self.debugFile.write("The user is in the future (by date), spooky\n")
+            if self.debug:
+                self.debugFile.write("\n")
             self.t = Timer(10.0, self.moveToAfk).start()
 
     def reply(self, p, msg, pm = None):
@@ -241,8 +264,9 @@ class PeeBotClient(mp.MumbleClient):
         myFile.close()
 
     def begWeek(self, date):
-        curDate = datetime.date(date[0], date[1], date[2])
-        curDate = str(curDate)[:-3] + ":"
+        #curDate = datetime.date(date[0], date[1], date[2])
+        #curDate = str(curDate)[:-3] + ":"
+        curDate = str(date[0]) + "-" + str(date[1]) + ":"
         return curDate
 
     def getLastStatus(self, p, status):
@@ -417,6 +441,12 @@ class PeeBotClient(mp.MumbleClient):
                 self.loggingOn = None
             else:
                 self.loggingOn = True
+
+        elif p.message == "/debug":
+            if self.debug:
+                self.debug = None
+            else:
+                self.debug = True
 
         # Moves user every time they talk
         elif p.message.startswith("/shutup"):
