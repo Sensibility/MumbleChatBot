@@ -6,7 +6,7 @@ import datetime, os, time
 from threading import Timer
 
 
-OWNER = "othercrusherexe"  # Your mumble nickname
+OWNER = "crusherexe"  # Your mumble nickname
 SERVER_IP = "mumble.superphage.us"  # Server IP
 SERVER_PORT = 64738  # Server PORT
 USERNAME = "MasterBot"  # Bot's name
@@ -365,6 +365,8 @@ class PeeBotClient(mp.MumbleClient):
         except:
             print "Could not update user state" 
 
+        if p.message.startswith("/steve"):
+            self.debugFile.write("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
 
         #Displays all available commands
         if p.message.startswith("/help"):
