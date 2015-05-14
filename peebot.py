@@ -2,7 +2,7 @@ from twisted.python.rebuild import rebuild
 import mumble_client as mc
 import mumble_protocol as mp
 import peebot
-import datetime, os, time
+import datetime, os, time, sys
 from threading import Timer
 
 
@@ -19,6 +19,8 @@ USERFILE = "user.log" #Where user log is stored
 BASELOG = "chat.log" #Where chat log is stored
 DEBUGLOG = "debug.log" #Where debug information is stored
 
+newLineChars = ["\n", "\r", "\n\r"]
+
 
 class PeeBotClient(mp.MumbleClient):
     def connectionMade(self):
@@ -33,15 +35,18 @@ class PeeBotClient(mp.MumbleClient):
         self.c_order = []
         self.loggingOn = True
         self.move = True
+        self.startTime = self.getTime(True, True)
         self.timer = (datetime.datetime.now() + datetime.timedelta(0,2)).time()
         self.t = Timer(10.0, self.moveToAfk).start()
-        self.debug = True
+        self.debug = False
         self.debugFile = open(DEBUGLOG, "a")
 
     def reload(self):
         rebuild(mp)
         rebuild(peebot)
 
+    #Check if a user has not been active in a certain amount of time
+    #and moves them to afk if they are not active
     def moveToAfk(self):
         people = {}
         for id in self.users:
@@ -52,7 +57,7 @@ class PeeBotClient(mp.MumbleClient):
         else:
             myFile = open(USERFILE, "r")
             for line in myFile:
-                if line == "\n" or line == "\n\r" or line == "\r": 
+                if line in newLineChars:
                     continue
                 lines = line.split("||")
                 if self.debug:
@@ -65,7 +70,7 @@ class PeeBotClient(mp.MumbleClient):
                     if lines[1] != 'afk':
                         if self.debug:
                             self.debugFile.write("User is not in afk\n")
-                        times = lines[3].split('::')
+                        times = self.getTimeFromLog(None, "lastActive", people[lines[0]]).split('::')
                         date = times[0]
                         curTime = times[1]
                         date = time.strptime(date, "%Y-%m-%d")
@@ -91,6 +96,7 @@ class PeeBotClient(mp.MumbleClient):
                 self.debugFile.write("\n")
             self.t = Timer(10.0, self.moveToAfk).start()
 
+    #Send a message to a user/channel
     def reply(self, p, msg, pm = None):
         if pm:
             self.send_textmessage(msg, users=[p.actor])
@@ -144,6 +150,17 @@ class PeeBotClient(mp.MumbleClient):
                 self.mute_or_deaf(self.session, False, False)
         self.userUpdate(p, update)
 
+    #Returns date and/or time, if both are returned :: is put in between
+    def getTime(self, date, time):
+        retString = ""
+        if date:
+            retString+= str(datetime.datetime.now().date())
+            if time:
+                retString+= "::"
+        if time:
+            retString+= str(datetime.datetime.now().time())
+        return retString
+
     def userUpdate(self, p, new):
         #p.actor is 0 if it is a state change, messages don't have a p.session var
         if p.actor == 0:
@@ -155,70 +172,138 @@ class PeeBotClient(mp.MumbleClient):
         else:
             if self.users[p.actor] == USERNAME:
                 return
+
         found = None
-        cont = ""
+        userLine = ""
         myFile = open(USERFILE, "r")
         for line in myFile:
-            if line == "\n" or line == "\n\r" or line == "\r": 
-                continue
+            if line in newLineChars:
+                userLineinue
             lines = line.split("||")
             #returning user/updating status
             if self.users[p.actor] == lines[0]:
                 found = True
-                cont+= lines[0]
-                cont+= "||"
+
+                #user name
+                userLine+= lines[0]
+                userLine+= "||"
+
                 #messages have channel_id as an array, states have them as an int
                 if isinstance(p.channel_id, int):
-                    cont+= self.channels[p.channel_id]
+                    userLine+= self.channels[p.channel_id]
                 else:
-                    cont+= self.channels[p.channel_id[0]]
-                cont+= "||"
-                #If they just logged in/logged out
-                if new:
-                    cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                    userLine+= self.channels[p.channel_id[0]]
+                userLine+= "||"
+
+                #If they just logged in
+                if new == True:
+                    userLine+= self.getTime(True, True)
                 else:
-                    cont+= lines[2]
-                cont+= "||"
-                cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
-                cont+= "||"
+                    userLine+= lines[2]
+                userLine+= "||"
+
                 #if they logged out
                 if new == "delete":
-                    cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
+                    userLine+= self.getTime(True, True)
                 else:
-                    cont+= lines[4].replace("\n", '')
-                cont+= "||"
-                #channel state is int if moving channels, therefore this checks
-                #if they have just moved to SuperPhage
-                if p.channel_id and p.__class__.__name__ == "UserState":
-                    cont+=  str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
-                else:
-                    cont+= lines[5].replace("\n", '')
-                cont+= "\n"
+                    userLine+= lines[3]
+                userLine+= "||"
 
+                #last active
+                userLine+= self.getTime(True, True)
+                userLine+= "||"
+
+                #channel state is int if moving channels, therefore this checks
+                if p.__class__.__name__ == "UserState":
+                    #They just came to SuperPhage
+                    if not p.channel_id:
+                        userLine+= lines[5] + "||"
+                        userLine+=  self.getTime(True, True)
+
+                    #They just left SuperPhage
+                    else:   
+                        userLine+= self.getTime(True, True) + "||"
+                        userLine+= lines[6].replace("\n", "")
+                else:
+                    userLine+= lines[5] + "||"
+                    userLine+= lines[6].replace("\n", "")
+
+                userLine+= "\n"
+
+            #Not the user, just replace the line
             else:
-                cont+= line
+                userLine+= line
+
         myFile.close()
         myFile = open(USERFILE, "w")
+
         #New User
         if(found == None):
-            cont+= self.users[p.actor]
-            cont+= "||"
+            #user name
+            userLine+= self.users[p.actor]
+            userLine+= "||"
+
+            #channel name
             if isinstance(p.channel_id, int):
-                cont+= self.channels[p.channel_id]
+                userLine+= self.channels[p.channel_id]
             else:
-                cont+= self.channels[p.channel_id[0]]
-            cont+= "||"
-            cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
-            cont+= "||"
-            cont+= str(datetime.datetime.now().date()) + "::" + str(datetime.datetime.now().time())
-            cont+= "||"
-            cont+= "0"
-            cont+= "||"
-            cont+= "0"
-            cont+= "||"
-            cont+= "\n"
-        myFile.write(cont)
+                userLine+= self.channels[p.channel_id[0]]
+            userLine+= "||"
+            
+            #logged on
+            userLine+= self.getTime(True, True)
+            userLine+= "||"
+
+            #logged off
+            userLine+= "0||"
+
+            #last active
+            userLine+= self.getTime(True, True)
+            userLine+= "||"
+
+            #last left channel
+            userLine+= "0||"
+
+            #came channel
+            userLine+= "0"
+
+            userLine+= "\n"
+        myFile.write(userLine)
         myFile.close()
+
+    #Returns Channel/Logged on Time/Last activity time/Last disconnected/Left channel/Came to root
+    def getTimeFromLog(self, p, what, name = None):
+        myFile = open(USERFILE, "r")
+        if p:
+            name = p.actor
+        else:
+            people = {}
+            for id in self.users:
+                people[self.users[id]] = id
+            try:
+                int(name)
+            except:
+                name = people[name]
+
+        for line in myFile:
+            if line in newLineChars:
+                continue
+            lines = line.split("||")
+            if lines[0] != self.users[name]:
+                continue
+            if what == "channel":
+                return lines[1]
+            elif what == "loggedOnTime":
+                return lines[2]
+            elif what == "loggedOffTime":
+                return lines[3]
+            elif what == "lastActive":
+                return lines[4]
+            elif what == "leftChannel":
+                return lines[5]
+            elif what == "cameChannel":
+                return lines[6]
+        return None
 
     #Displays when a user was last active/online
     def getLast(self, name, type):
@@ -238,15 +323,15 @@ class PeeBotClient(mp.MumbleClient):
                 msg = name
                 if(type == "Active"):
                     if online:
-                        msg+= " was last active at " + lines[3].split("::")[1][:-7]
+                        msg+= " was last active at " + self.getTimeFromLog(None, "lastActive", name).split("::")[1][:-7]
                     else:
-                        msg+= " is not online and was last seen in the channel " + lines[1] + " on " + lines[2].replace("::", " at")[:-7]
+                        msg+= " is not online and was last seen in the channel " + lines[1] + " on " + self.getTimeFromLog(p, "loggedOffTime").replace("::", " at")[:-7]
                         
                 if(type == "Online"):
                     if online:
-                        msg+= " is online and was last active at " + lines[3].split("::")[1][:-7]
+                        msg+= " is online and was last active at " + self.getTimeFromLog(None, "lastActive", name).split("::")[1][:-7]
                     else:
-                        msg+= " was last seen in the channel " + lines[1] + " on " + lines[2].replace("::", " at ")[:-7]
+                        msg+= " was last seen in the channel " + lines[1] + " on " + self.getTimeFromLog(p, "loggedOffTime").replace("::", " at ")[:-7]
                 break
         myFile.close()
         if not found:
@@ -270,25 +355,14 @@ class PeeBotClient(mp.MumbleClient):
         return curDate
 
     def getLastStatus(self, p, status):
-        myFile = open(USERFILE, "r")
-        for line in myFile:
-            if line == "\n" or line == "\n\r" or line == "\r": 
-                continue
-            lines = line.split("||")
-            if lines[0] != self.users[p.actor]:
-                continue
-            else:
-                if(status == "Online"):
-                    if lines[4] == "0":
-                        return None
-                    else:
-                        return lines[4]
-                elif(status == "Afk"):
-                    if lines[5] == "0\n":
-                        return None
-                    else:
-                        return lines[5]
-        return None
+        if status == "Online":
+            temp = self.getTimeFromLog(p, "loggedOffTime")
+        else:
+            temp =  self.getTimeFromLog(p, "leftChannel")
+        if temp != "0":
+            return temp
+        else:
+            return None
 
     def compareTime(self, time1, time2):
         if time1.tm_year > time2.tm_year:
@@ -315,23 +389,27 @@ class PeeBotClient(mp.MumbleClient):
         oldWeeks = oldFile.replace(':', '').split('-')[1]
         newWeeks = currentFile.replace(':', '').split('-')[1]
         response = ""
+        i = 0
         #if there is no difference in year
         if not (int(oldFile.split('-')[0]) - int(currentFile.split('-')[0])):
             #iterating over first week to current week
             for x in range((int(newWeeks) - int(oldWeeks) + 1)):
+                #if the week number is one digit, prepend a zero
                 if len(str(int(oldWeeks) + x)) == 1:
                     week = "0" + str(int(oldWeeks) + x)
                 else:
                     week = str(int(oldWeeks) + x)
+                #currentLog = Year-Week:
                 currentLog = oldFile.split('-')[0] + "-" + week + ":"
-                i = 0
+                #YYYY-WW:chat.log
                 if os.path.isfile(currentLog + BASELOG):
                     myFile = open(currentLog + BASELOG, "r")
                     #If we are in the first file
                     for i, line in enumerate(myFile):
-                        if line == "\n" or line == "\n\r" or line == "\r": 
+                        if line in newLineChars: 
                             continue
                         lines = line.split("!||!")
+                        #Getting the time to grab up too
                         newComp = time.strptime(newDay + "::" + str(newTime).split(".")[0], "%Y-%m-%d::%H:%M:%S")
                         oldComp = time.strptime(seenDate.split(".")[0], "%Y-%m-%d::%H:%M:%S")
                         tempTime = time.strptime(lines[2] + "::" + lines[3].split(".")[0], "%Y-%m-%d::%H:%M:%S")
@@ -343,7 +421,6 @@ class PeeBotClient(mp.MumbleClient):
                         if int(oldWeeks) + x == int(newWeeks):
                             if not self.compareTime(newComp, tempTime):
                                 continue
-
                         response+= "<p>In " + lines[0] + " on " + lines[2] + " at " + lines[3][:-7] + " " + lines[1] + " said: " + lines[4] + "</p>"
                         #To avoid too large of a string
                         if i % 20 == 0:
@@ -353,11 +430,10 @@ class PeeBotClient(mp.MumbleClient):
                     print "Doesn't exist: " + currentLog
         else:
             print (int(oldFile.split('-')[0]) - int(currentFile.split('-')[0]))
-        if response == "" and i != 0:
+        if response == "" and i == 0:
             response = "No unseen messages"
         else:
             self.reply(p, response, True)
-
 
     def handle_textmessage(self, p):
         try:
@@ -365,12 +441,12 @@ class PeeBotClient(mp.MumbleClient):
         except:
             print "Could not update user state" 
 
-        if p.message.startswith("/steve"):
-            self.debugFile.write("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
+        #if p.message.startswith("/steve"):
+        #    self.debugFile.write("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
 
         #Displays all available commands
         if p.message.startswith("/help"):
-            self.reply(p, "<p>/active [username] will display when the user was last active</p><p>/online [username] will display when the user was last online</p><p>/log online will display all messages since you were last online</p><p>/log channel will display all messages since you left the root channel</p>", True)
+            self.reply(p, "<p>/active [username] will display when the user was last active</p><p>/online [username] will display when the user was last online</p><p>/log online will display all messages since you were last online</p><p>/log channel will display all messages since you left the root channel</p><p>/bot online will display the time the bot came online", True)
 
         if p.message.startswith("/log"):
             msg = p.message.split()
@@ -378,11 +454,13 @@ class PeeBotClient(mp.MumbleClient):
                 if msg[1] == "online":
                     seenDate = self.getLastStatus(p, "Online")
                     if seenDate:
-                        print seenDate
                         temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
-                        onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
-                        currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
-                        currentTime = datetime.datetime.now().time()
+                        onlineFile  = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
+                        currentWeek = self.getTimeFromLog(p, "loggedOnTime")
+                        currentTime = currentWeek.split("::")[1]
+                        currentWeek = currentWeek.split("::")[0]
+                        temp = time.strptime(currentWeek.split("::")[0], "%Y-%m-%d")
+                        currentWeek = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
                         self.getLogMessage(p, onlineFile, seenDate, currentWeek, currentTime, seenDate.split("::")[0])
                     else:
                         self.reply(p, "You have never been seen logging off", True)
@@ -391,17 +469,22 @@ class PeeBotClient(mp.MumbleClient):
                     if seenDate:
                         temp = time.strptime(seenDate.split("::")[0], "%Y-%m-%d")
                         onlineFile = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
-                        currentWeek = self.begWeek(datetime.datetime.now().date().isocalendar())
-                        currentTime = datetime.datetime.now().time()
+                        currentWeek = self.getTimeFromLog(p, "cameChannel")
+                        currentTime = currentWeek.split("::")[1]
+                        currentWeek = currentWeek.split("::")[0]
+                        temp = time.strptime(currentWeek.split("::")[0], "%Y-%m-%d")
+                        currentWeek = self.begWeek(datetime.date(temp[0], temp[1], temp[2]).isocalendar())
                         self.getLogMessage(p, onlineFile, seenDate, currentWeek, currentTime, seenDate.split("::")[0])
                     else:
                         self.reply(p, "You have never been seen in a differnet channel", True)
 
+        if p.message.startswith("/bot online"):
+            self.reply(p, str(self.startTime).replace("::", " at ").split(".")[0])
 
         #Displays when user was last active
         if p.message.startswith("/active"):
             if len(p.message.split()) > 1:
-                response = self.getLast(p.message.split(' ')[-1], "Active")
+                response = self.getLast(p.message.split(' ')[-1],  "Active")
                 if not response:
                     self.reply(p, "Invalid Name")
                 else:
@@ -410,7 +493,7 @@ class PeeBotClient(mp.MumbleClient):
         #Displays when user was last online
         if p.message.startswith("/online"):
             if len(p.message.split()) > 1:
-                response = self.getLast(p.message.split(' ')[-1], "Online")
+                response = self.getLast(p.message.split(' ')[-1],  "Online")
                 if not response:
                     self.reply(p, "Invalid Name")
                 else:
@@ -424,6 +507,10 @@ class PeeBotClient(mp.MumbleClient):
         # Only listen to the owner
         if self.users[p.actor] != OWNER:
             return
+
+        if p.message == "/kill":
+            self.move = None
+            sys.exit()
 
         # Reload the script
         if p.message == "/reload":
