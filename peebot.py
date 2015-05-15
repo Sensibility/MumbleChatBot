@@ -37,7 +37,7 @@ class PeeBotClient(mp.MumbleClient):
         self.move = True
         self.startTime = self.getTime(True, True)
         self.timer = (datetime.datetime.now() + datetime.timedelta(0,2)).time()
-        self.t = Timer(10.0, self.moveToAfk).start()
+        self.t = Timer(10.0, self.moveToAfk)
         self.debug = False
         self.debugFile = open(DEBUGLOG, "a")
 
@@ -70,28 +70,31 @@ class PeeBotClient(mp.MumbleClient):
                     if lines[1] != 'afk':
                         if self.debug:
                             self.debugFile.write("User is not in afk\n")
-                        times = self.getTimeFromLog(None, "lastActive", people[lines[0]]).split('::')
-                        date = times[0]
-                        curTime = times[1]
-                        date = time.strptime(date, "%Y-%m-%d")
-                        curTime = time.strptime(curTime.split('.')[0], "%H:%M:%S")
-                        curTime = datetime.datetime(date[0], date[1], date[2], curTime[3], curTime[4], curTime[5])
-                        date = datetime.date(date[0], date[1], date[2])
-                        if date == datetime.datetime.now().date():
-                            if curTime + datetime.timedelta(0, 1200) < datetime.datetime.now():
+                        try:
+                            times = self.getTimeFromLog(None, "lastActive", people[lines[0]]).split('::')
+                            date = times[0]
+                            curTime = times[1]
+                            date = time.strptime(date, "%Y-%m-%d")
+                            curTime = time.strptime(curTime.split('.')[0], "%H:%M:%S")
+                            curTime = datetime.datetime(date[0], date[1], date[2], curTime[3], curTime[4], curTime[5])
+                            date = datetime.date(date[0], date[1], date[2])
+                            if date == datetime.datetime.now().date():
+                                if curTime + datetime.timedelta(0, 1200) < datetime.datetime.now():
+                                    if self.debug:
+                                        self.debugFile.write("User has not been active for 1200 seconds\n")
+                                    self.move_user(1, people[lines[0]])
+                                elif self.debug:
+                                    self.debugFile.write("Same date, but they have been active in the last 1200 seconds\n")
+                            #If I have 10 people on at 11:59 p.m. and it changes to 12 of the next day
+                            #the bot will? move everybody to afk UNTESTED
+                            elif date < datetime.datetime.now().date():
                                 if self.debug:
-                                    self.debugFile.write("User has not been active for 1200 seconds\n")
+                                    self.debugFile.write("User has not been active?\n")
                                 self.move_user(1, people[lines[0]])
                             elif self.debug:
-                                self.debugFile.write("Same date, but they have been active in the last 1200 seconds\n")
-                        #If I have 10 people on at 11:59 p.m. and it changes to 12 of the next day
-                        #the bot will? move everybody to afk UNTESTED
-                        elif date < datetime.datetime.now().date():
-                            if self.debug:
-                                self.debugFile.write("User has not been active?\n")
-                            self.move_user(1, people[lines[0]])
-                        elif self.debug:
-                            self.debugFile.write("The user is in the future (by date), spooky\n")
+                                self.debugFile.write("The user is in the future (by date), spooky\n")
+                        except:
+                            print lines[0]
             if self.debug:
                 self.debugFile.write("\n")
             self.t = Timer(10.0, self.moveToAfk).start()
