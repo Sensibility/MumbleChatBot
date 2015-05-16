@@ -19,7 +19,7 @@ USERFILE = "user.log" #Where user log is stored
 BASELOG = "chat.log" #Where chat log is stored
 DEBUGLOG = "debug.log" #Where debug information is stored
 
-newLineChars = ["\n", "\r", "\n\r"]
+newLineChars = ["\n", "\r", "\n\r", "\r\n"] #Linux uses \n Windows uses \n\r
 
 
 class PeeBotClient(mp.MumbleClient):
@@ -40,6 +40,9 @@ class PeeBotClient(mp.MumbleClient):
         self.t = Timer(10.0, self.moveToAfk)
         self.debug = False
         self.debugFile = open(DEBUGLOG, "a")
+        f = open(USERFILE, "w")
+        f.write("")
+        f.close()
 
     def reload(self):
         rebuild(mp)
@@ -334,7 +337,7 @@ class PeeBotClient(mp.MumbleClient):
                     if online:
                         msg+= " is online and was last active at " + self.getTimeFromLog(None, "lastActive", name).split("::")[1][:-7]
                     else:
-                        msg+= " was last seen in the channel " + lines[1] + " on " + self.getTimeFromLog(p, "loggedOffTime").replace("::", " at ")[:-7]
+                        msg+= " was last seen in the channel " + lines[1] + " on " + self.getTimeFromLog(None, "loggedOffTime", name).replace("::", " at ")[:-7]
                 break
         myFile.close()
         if not found:
