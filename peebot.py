@@ -260,23 +260,34 @@ class PeeBotClient(mp.MumbleClient):
     #Returns Channel/Logged on Time/Last activity time/Last disconnected/Left channel/Came to root
     def getTimeFromLog(self, p, what, name = None):
         myFile = open(USERFILE, "r")
-        if p:
+        online = None
+	    if p:
             name = p.actor
         else:
             people = {}
-            try:
+            for id in self.users:
+                people[self.users[id]] = id
+            #print people
+    	    #print name
+    	    try:
                 int(name)
             except:
-                for id in self.users:
-                    people[self.users[id]] = id
-                name = people[name]
+                try:
+        	  	    name = people[name]
+        		except:
+        		    #User is not online
+        		    online = False
 
         for line in myFile:
             if line in newLineChars:
                 continue
             lines = line.split("||")
-            if lines[0] != self.users[name]:
-                continue
+	    if online == False:
+		if lines[0] != name:
+		    continue
+            else:
+            	if lines[0] != self.users[name]:
+                    continue
             if what == "channel":
                 return lines[1]
             elif what == "loggedOnTime":
@@ -311,7 +322,7 @@ class PeeBotClient(mp.MumbleClient):
                     if online:
                         msg+= " was last active at " + self.getTimeFromLog(None, "lastActive", name).split("::")[1][:-7]
                     else:
-                        msg+= " is not online and was last seen in the channel " + lines[1] + " on " + self.getTimeFromLog(p, "loggedOffTime").replace("::", " at")[:-7]
+                        msg+= " is not online and was last seen in the channel " + lines[1] + " on " + self.getTimeFromLog(None, "loggedOffTime", name).replace("::", " at ")[:-7]
                         
                 if(type == "Online"):
                     if online:
@@ -467,7 +478,7 @@ class PeeBotClient(mp.MumbleClient):
         #Displays when user was last active
         if p.message.startswith("/active"):
             if len(p.message.split()) > 1:
-                response = self.getLast(p.message.split(' ')[-1],  "Active")
+                response = self.getLast(p.message.split(' ')[1],  "Active")
                 if not response:
                     self.reply(p, "Invalid Name")
                 else:
@@ -476,7 +487,7 @@ class PeeBotClient(mp.MumbleClient):
         #Displays when user was last online
         if p.message.startswith("/online"):
             if len(p.message.split()) > 1:
-                response = self.getLast(p.message.split(' ')[-1],  "Online")
+                response = self.getLast(p.message.split(' ')[1],  "Online")
                 if not response:
                     self.reply(p, "Invalid Name")
                 else:
