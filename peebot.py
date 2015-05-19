@@ -37,7 +37,7 @@ class PeeBotClient(mp.MumbleClient):
         self.move = True
         self.startTime = self.getTime(True, True)
         self.timer = (datetime.datetime.now() + datetime.timedelta(0,2)).time()
-        self.t = Timer(10.0, self.moveToAfk)
+        self.t = Timer(10.0, self.moveToAfk).start()
         self.debug = False
         self.debugFile = open(DEBUGLOG, "a")
         f = open(USERFILE, "w")
@@ -260,46 +260,43 @@ class PeeBotClient(mp.MumbleClient):
     #Returns Channel/Logged on Time/Last activity time/Last disconnected/Left channel/Came to root
     def getTimeFromLog(self, p, what, name = None):
         myFile = open(USERFILE, "r")
-        online = None
-	    if p:
+        if p:
             name = p.actor
         else:
             people = {}
             for id in self.users:
                 people[self.users[id]] = id
             #print people
-    	    #print name
-    	    try:
+            #print name
+            try:
                 int(name)
             except:
                 try:
-        	  	    name = people[name]
-        		except:
-        		    #User is not online
-        		    online = False
-
+                    name = people[name]
+                except:
+                    #User is not online
+                    return None
         for line in myFile:
             if line in newLineChars:
                 continue
             lines = line.split("||")
-	    if online == False:
-		if lines[0] != name:
-		    continue
+            if lines[0] != self.users[name]:
+                continue
             else:
-            	if lines[0] != self.users[name]:
+                if lines[0] != self.users[name]:
                     continue
-            if what == "channel":
-                return lines[1]
-            elif what == "loggedOnTime":
-                return lines[2]
-            elif what == "loggedOffTime":
-                return lines[3]
-            elif what == "lastActive":
-                return lines[4]
-            elif what == "leftChannel":
-                return lines[5]
-            elif what == "cameChannel":
-                return lines[6]
+                if what == "channel":
+                    return lines[1]
+                elif what == "loggedOnTime":
+                    return lines[2]
+                elif what == "loggedOffTime":
+                    return lines[3]
+                elif what == "lastActive":
+                    return lines[4]
+                elif what == "leftChannel":
+                    return lines[5]
+                elif what == "cameChannel":
+                    return lines[6]
         return None
 
     #Displays when a user was last active/online
