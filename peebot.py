@@ -63,18 +63,10 @@ class PeeBotClient(mp.MumbleClient):
                 if line in newLineChars:
                     continue
                 lines = line.split("||")
-                if self.debug:
-                    self.debugFile.write("Checking: ")
-                    self.debugFile.write(lines[0])
-                    self.debugFile.write("\n")
                 if lines[0] in self.users.values():
-                    if self.debug:
-                        self.debugFile.write("User is currently logged in\n")
-                    if lines[1] != 'afk':
-                        if self.debug:
-                            self.debugFile.write("User is not in afk\n")
+                    if lines[1] == 'SuperPhage':
                         try:
-                            times = self.getTimeFromLog(None, "lastActive", people[lines[0]]).split('::')
+                            times = self.getTimeFromLog(None, "lastActive", lines[0]).split('::')
                             date = times[0]
                             curTime = times[1]
                             date = time.strptime(date, "%Y-%m-%d")
@@ -83,23 +75,11 @@ class PeeBotClient(mp.MumbleClient):
                             date = datetime.date(date[0], date[1], date[2])
                             if date == datetime.datetime.now().date():
                                 if curTime + datetime.timedelta(0, 1200) < datetime.datetime.now():
-                                    if self.debug:
-                                        self.debugFile.write("User has not been active for 1200 seconds\n")
                                     self.move_user(1, people[lines[0]])
-                                elif self.debug:
-                                    self.debugFile.write("Same date, but they have been active in the last 1200 seconds\n")
-                            #If I have 10 people on at 11:59 p.m. and it changes to 12 of the next day
-                            #the bot will? move everybody to afk UNTESTED
                             elif date < datetime.datetime.now().date():
-                                if self.debug:
-                                    self.debugFile.write("User has not been active?\n")
                                 self.move_user(1, people[lines[0]])
-                            elif self.debug:
-                                self.debugFile.write("The user is in the future (by date), spooky\n")
                         except:
                             print lines[0]
-            if self.debug:
-                self.debugFile.write("\n")
             self.t = Timer(10.0, self.moveToAfk).start()
 
     #Send a message to a user/channel
@@ -284,11 +264,11 @@ class PeeBotClient(mp.MumbleClient):
             name = p.actor
         else:
             people = {}
-            for id in self.users:
-                people[self.users[id]] = id
             try:
                 int(name)
             except:
+                for id in self.users:
+                    people[self.users[id]] = id
                 name = people[name]
 
         for line in myFile:
@@ -446,9 +426,6 @@ class PeeBotClient(mp.MumbleClient):
             self.userUpdate(p, None)
         except:
             print "Could not update user state" 
-
-        #if p.message.startswith("/steve"):
-        #    self.debugFile.write("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
 
         #Displays all available commands
         if p.message.startswith("/help"):
