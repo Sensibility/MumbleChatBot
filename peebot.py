@@ -76,11 +76,43 @@ class PeeBotClient(mp.MumbleClient):
                             if date == datetime.datetime.now().date():
                                 if curTime + datetime.timedelta(0, 1200) < datetime.datetime.now():
                                     self.move_user(1, people[lines[0]])
+                                    self.updateChange(lines[0])
                             elif date < datetime.datetime.now().date():
                                 self.move_user(1, people[lines[0]])
+                                self.updateChange(lines[0])
                         except:
                             print lines[0]
             self.t = Timer(10.0, self.moveToAfk).start()
+
+    def updateChange(user):
+        myFile = open(USERFILE, "r")
+        for line in myFile:
+            if line in newLineChars:
+                userLineinue
+            lines = line.split("||")
+            if self.users[p.actor] == lines[0]:
+                #user name
+                userLine+= lines[0]
+                userLine+= "||"
+                
+                userLine+= "afk"
+                userLine+= "||"
+
+                userLine+= lines[2]
+                userLine+= "||"
+
+                userLine+= lines[3]
+                userLine+= "||"
+
+                userLine+= lines[4]
+                userLine+= "||"
+
+                userLine+= self.getTime(True, True) + "||"
+
+                userLine+= lines[6].replace("\n", "")
+                userLine+= "\n"
+        myFile.write(userLine)
+        myFile.close()
 
     #Send a message to a user/channel
     def reply(self, p, msg, pm = None):
@@ -106,9 +138,9 @@ class PeeBotClient(mp.MumbleClient):
 
     def handle_userremove(self, p):
         # Remove user from userlist
-        self.userUpdate(p, "delete")
         try:
             del self.users[p.session]
+            self.userUpdate(p, "delete")
         except:
             print "Couldn't delete users session"
 
