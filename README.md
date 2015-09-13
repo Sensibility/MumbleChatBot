@@ -15,12 +15,12 @@ Currently, the client can:
 
 There is no codec support though, so the audio data cannot be parsed.
 
-A sample bot implementation is given in peebot.py
-You can use it as a reference. It shows how to:
+Extension
+=============
 
-- Dynamically reload the bot
-- Store and list user/channel list
-- Move users around and change their state (mute/deafen)
-- Recieve, parse and send text messages
+Peebot.py has been modified to allow for the following functionality:
 
-Feel free to expand on and send me an e-mail for any question or suggestion.
+- Automatic moving of users to a specified channel after a certian amount of inactive time
+- Give detailed information about when a user was last seen, last active, last changed channels.
+- Get a log of messages from the last time the user left the channel or logged off.
+- Provide admin functionality to specific users without actually giving them admin priviledges.
