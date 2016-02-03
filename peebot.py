@@ -4,22 +4,7 @@ import mumble_protocol as mp
 import peebot
 import datetime, os, time, sys
 from threading import Timer
-
-
-OWNER = "crusherexe"  # Your mumble nickname
-SERVER_IP = "mumble.superphage.us"  # Server IP
-SERVER_PORT = 64738  # Server PORT
-USERNAME = "MasterBot"  # Bot's name
-
-# Use empty string for optional fields to remove
-PASSWORD = "not124"  # Optional password
-CERTIFICATE = "master.p12"  # Optional certificate
-
-USERFILE = "user.log" #Where user log is stored
-BASELOG = "chat.log" #Where chat log is stored
-DEBUGLOG = "debug.log" #Where debug information is stored
-
-newLineChars = ["\n", "\r", "\n\r", "\r\n"] #Linux uses \n Windows uses \n\r
+from settings import *
 
 
 class PeeBotClient(mp.MumbleClient):
@@ -593,5 +578,5 @@ class PeeBotClient(mp.MumbleClient):
 
 
 if __name__ == '__main__':
-    factory = mc.create_client(peebot.PeeBotClient, USERNAME, PASSWORD)
+    factory = mc.create_client(PeeBotClient, USERNAME, PASSWORD)
     mc.start_client(factory, SERVER_IP, SERVER_PORT, certificate=CERTIFICATE)
